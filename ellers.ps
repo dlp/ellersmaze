@@ -18,7 +18,6 @@ seed dup = srand
 /next N array def
 /prev N array def
 
-
 /clear-borders
 {
     N {false} repeat border-right  astore pop
@@ -31,22 +30,6 @@ seed dup = srand
 
 /set-border-right { % i => --
     border-right  exch true put
-} def
-
-/clr-border-bottom { % i => --
-    border-bottom exch false put
-} def
-
-/clr-border-right { % i => --
-    border-right  exch false put
-} def
-
-/has-border-bottom { % x => bool
-    border-bottom exch get
-} def
-
-/has-border-right { % x => bool
-    border-right exch get
 } def
 
 /print-top {
@@ -64,77 +47,80 @@ seed dup = srand
     } for
 } def
 
-/set-equal % x y => bool
+/set-equal % u v => bool
 {
     2 dict
     begin
-        /y exch def
-        /x exch def
-        % x.next == y && x == y.prev
-        next x get  y  eq
-        prev y get  x  eq
+        /v exch def
+        /u exch def
+        % u.next == v && u == v.prev
+        next u get  v  eq
+        prev v get  u  eq
         and
     end
 } def
 
 
-/set-islast { % x => bool
-    dup % x x
-    next exch % x next x
-    get % x nx
+/set-islast { % u => bool
+    dup % u u
+    next exch % u next u
+    get % u nu
     ge
 } def
 
-/set-remove % x => --
+/set-remove % u => --
 {
     1 dict
     begin
-        /x exch def
-        % x.prev.next = x.next
-        prev x get  % load x.prev
+        /u exch def
+        % u.prev.next = u.next
+        prev u get  % load u.prev
         next exch   % prepare .next
-        next x get  % load x.next
+        next u get  % load u.next
         put
-        % x.next.prev = x.prev
-        next x get
+        % u.next.prev = u.prev
+        next u get
         prev exch
-        prev x get
+        prev u get
         put
-        % x.next = x
-        next x x put
-        % x.prev = x
-        prev x x put
+        % u.next = u
+        next u u put
+        % u.prev = u
+        prev u u put
     end
 } def
 
 
-/set-join % x y => --
+/set-join % u v => --
 {
     2 dict
     begin
-        /y exch def
-        /x exch def
+        /v exch def
+        /u exch def
 
-        % x.next.prev = y.prev
-        next x get  % load x.next
+        % u.next.prev = v.prev
+        next u get  % load u.next
         prev exch   % prepare .prev
-        prev y get  % load y.prev
+        prev v get  % load v.prev
         put
-        % y.prev.next = x.next
-        prev y get  % load y.prev
+        % v.prev.next = u.next
+        prev v get  % load v.prev
         next exch   % prepare .next
-        next x get  % load x.next
+        next u get  % load u.next
         put
 
-        next x y put % x.next = y
-        prev y x put % y.prev = x
+        next u v put % u.next = v
+        prev v u put % v.prev = u
     end
 } def
 
 % print a maze row based on borders
 /print-row { % -- => --
-    (|) print
-    0 1 N 1 sub { % for 0 .. N-1
+    (|) print % leftmost border
+    0 1
+    N 1 sub
+    dup set-border-right % unconditonally set rightmost border
+    { % for 0 .. N-1
         dup % we need the control variable twice
         border-bottom exch get {(___)} {(   )} ifelse print
         border-right  exch get {(|)  } {( )  } ifelse print
@@ -142,75 +128,88 @@ seed dup = srand
     (\n) print
 } def
 
+% debugging aid
 /show-links {
     (Links:\n) print
     (prev ) print prev ==
     (next ) print next ==
 } def
 
-
+% debugging aid
+% assume u,y are defined
 /show-pair {
-    [ (pair: ) x  y ] { = } forall
+    [ (pair: ) u  v ] { = } forall
 } def
 
-/make-border-right { % x => --
-    /x exch def
-    x N 1 sub lt
-    {
-        /y x 1 add def
-        x y set-equal { x set-border-right } {
-            cointoss { x set-border-right } { x y set-join } ifelse
+
+% depending on chance, set right border of u or join sets of u and v
+/set-border-or-join { % u v => --
+    cointoss { pop set-border-right } { set-join } ifelse
+} def
+
+/make-border-right { % u => --
+    /u exch def
+    u N 1 sub lt {
+        /v u 1 add def
+        u v set-equal { u set-border-right } {
+            u v set-border-or-join
         } ifelse
-        y make-border-right % recurse
+        v make-border-right % recurse
     }
-    { x set-border-right } % unconditonally set rightmost border
-    ifelse
+    if
 } def
 
 
-/last-row { % x => --
-    /x exch def
-    x set-border-bottom
-    x N 1 sub ne { % else (i.e., y in scope)
-        /y x 1 add def
-        x y set-equal not
-        { x clr-border-right x y set-join }
-        { x set-border-right } ifelse
-        y last-row % recurse
+/last-row { % u => --
+    /u exch def
+    u set-border-bottom
+    u N 1 sub lt {
+        /v u 1 add def
+        u v set-equal { u set-border-right } {
+            u v set-join % in last row we always join
+        } ifelse
+        v last-row % recurse
     } if
 } def
 
+% ary[u] := ary[u.prev]
+/assign-from-prev { % ary u => --
+    2 copy    % ary u ary u
+    prev exch % ary u ary prev u
+    get get put
+} def
 
-/make-border-bottom { % x => --
-    /x exch def
+/make-border-bottom { % ary u => --
+    /u exch def
     /vertical-passages exch def
 
-    vertical-passages x
-    vertical-passages prev x get get
-    put
+    vertical-passages u assign-from-prev
 
-    x set-islast {
-        vertical-passages x get {
-            cointoss { x set-border-bottom x set-remove } if
+    u set-islast {
+        % if u has already vertical passages
+        vertical-passages u get {
+            cointoss {
+                u set-border-bottom
+                u set-remove
+            } if
         } if
     } {
         % can toss a coin
         cointoss
-        { x set-border-bottom x set-remove }
-        { vertical-passages x true put }
+        { u set-border-bottom u set-remove }
+        { vertical-passages u true put }
         ifelse
     } ifelse
 
-    x N 1 sub lt { vertical-passages x 1 add make-border-bottom } if
+    u N 1 sub lt { vertical-passages u 1 add make-border-bottom } if
 } def
 
 
 init-sets
-
 print-top
+clear-borders
 
 10 {
-    clear-borders
 
     0 make-border-right
 
@@ -218,11 +217,12 @@ print-top
     [ N {false} repeat ] 0 make-border-bottom
 
     print-row
+    clear-borders
 } repeat
 
 0 last-row
 print-row
-
+pstack % should be empty
 (End\n) print
 %showpage
 quit
