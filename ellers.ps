@@ -7,7 +7,7 @@
 
 /N 10 def
 
-realtime srand
+seed dup = srand
 
 /cointoss { % -- => bool
     rand 2 mod 0 eq
@@ -17,19 +17,13 @@ realtime srand
 /border-bottom N array def
 /next N array def
 /prev N array def
-/vertical-passages N array def
 
 
 /clear-borders
 {
-    N {false} repeat border-right  astore
-    N {false} repeat border-bottom astore
+    N {false} repeat border-right  astore pop
+    N {false} repeat border-bottom astore pop
 } def
-
-/clear-vertical-passages {
-    N {false} repeat vertical-passages astore
-} def
-
 
 /set-border-bottom { % i => --
     border-bottom exch true put
@@ -54,15 +48,6 @@ realtime srand
 /has-border-right { % x => bool
     border-right exch get
 } def
-
-/walk % proc x => proc
-{
-    /x exch def    % x
-    dup cvx exec % execute proc with x defined
-    % recurse if within bounds
-    x N 1 sub lt { x 1 add walk } if
-} def
-
 
 /print-top {
     ( ) print
@@ -92,9 +77,6 @@ realtime srand
     end
 } def
 
-/set-issingle { % x => bool
-    dup set-equal
-} def
 
 /set-islast { % x => bool
     dup % x x
@@ -171,19 +153,38 @@ realtime srand
     [ (pair: ) x  y ] { = } forall
 } def
 
-% x must be defined
-/make-border-right {
-    x N 1 sub eq { x set-border-right } % unconditonally set rightmost border
-    { % else (i.e., y in scope)
+/make-border-right { % x => --
+    /x exch def
+    x N 1 sub lt
+    {
         /y x 1 add def
         x y set-equal { x set-border-right } {
             cointoss { x set-border-right } { x y set-join } ifelse
         } ifelse
-    } ifelse
+        y make-border-right % recurse
+    }
+    { x set-border-right } % unconditonally set rightmost border
+    ifelse
 } def
 
-% x must be defined
-/make-border-bottom {
+
+/last-row { % x => --
+    /x exch def
+    x set-border-bottom
+    x N 1 sub ne { % else (i.e., y in scope)
+        /y x 1 add def
+        x y set-equal not
+        { x clr-border-right x y set-join }
+        { x set-border-right } ifelse
+        y last-row % recurse
+    } if
+} def
+
+
+/make-border-bottom { % x => --
+    /x exch def
+    /vertical-passages exch def
+
     vertical-passages x
     vertical-passages prev x get get
     put
@@ -199,15 +200,8 @@ realtime srand
         { vertical-passages x true put }
         ifelse
     } ifelse
-} def
 
-% x must be defined
-/last-row {
-    x set-border-bottom
-    x N 1 sub ne { % else (i.e., y in scope)
-        /y x 1 add def
-        x y set-equal not { x clr-border-right x y set-join } if
-    } if
+    x N 1 sub lt { vertical-passages x 1 add make-border-bottom } if
 } def
 
 
@@ -217,16 +211,16 @@ print-top
 
 10 {
     clear-borders
-    /make-border-right 0 walk
-    pop
-    clear-vertical-passages
-    /make-border-bottom 0 walk
-    pop
+
+    0 make-border-right
+
+    % initial array for vertical-passages
+    [ N {false} repeat ] 0 make-border-bottom
 
     print-row
 } repeat
 
-/last-row 0 walk
+0 last-row
 print-row
 
 (End\n) print

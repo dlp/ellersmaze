@@ -1,4 +1,5 @@
 
+SHELL := /bin/bash
 
 PS2PDF := ps2pdf -dNOSAFER -sPAPERSIZE=a4 -dEmbedAllFonts=true
 
@@ -8,7 +9,7 @@ all:
 	@echo "Run 'make filename.pdf' to deploy"
 
 %.show: %.ps
-	gs $<
+	gs -Dseed=$$RANDOM $<
 
 %.pdf: %.ps
 	$(PS2PDF) $< $@
