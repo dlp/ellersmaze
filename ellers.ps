@@ -2,10 +2,10 @@
 
 %(util.ps) run
 
-
 (Begin\n) print
 
-/N 10 def
+/maze-width 20 def
+/maze-height 30 def
 
 seed dup = srand
 
@@ -13,23 +13,40 @@ seed dup = srand
     rand 2 mod 0 eq
 } def
 
+/N maze-width def
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Border manipulation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 /border-right  N array def
 /border-bottom N array def
-/next N array def
-/prev N array def
 
-/clear-borders
-{
+/clear-borders {
     N {false} repeat border-right  astore pop
     N {false} repeat border-bottom astore pop
 } def
 
-/set-border-bottom { % i => --
+/set-bottom-border { % i => --
     border-bottom exch true put
 } def
 
-/set-border-right { % i => --
+/set-right-border { % i => --
     border-right  exch true put
+} def
+
+% print a maze row based on borders
+/print-row { % -- => --
+    (|) print % leftmost border
+    0 1
+    N 1 sub
+    dup set-right-border % unconditonally set rightmost border
+    { % for 0 .. N-1
+        dup % we need the control variable twice
+        border-bottom exch get {(___)} {(   )} ifelse print
+        border-right  exch get {(|)  } {( )  } ifelse print
+    } for
+    (\n) print
 } def
 
 /print-top {
@@ -38,17 +55,22 @@ seed dup = srand
     (\n) print
 } def
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Circular doubly-linked list for managing sets
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+/next N array def
+/prev N array def
 
 /init-sets {
-    0 1 N 1 sub { % for 0 .. N-1
-        dup % we need the control variable twice
-        next exch dup put
-        prev exch dup put
+    0 1 N 1 sub {           % for 0 .. N-1
+        dup                 % we need the control variable twice
+        next exch dup put   % u.next = u
+        prev exch dup put   % u.prev = u
     } for
 } def
 
-/set-equal % u v => bool
-{
+/are-in-same-set { % u v => bool
     2 dict
     begin
         /v exch def
@@ -60,16 +82,14 @@ seed dup = srand
     end
 } def
 
-
-/set-islast { % u => bool
+/is-last-cell-of-set { % u => bool
     dup % u u
     next exch % u next u
     get % u nu
     ge
 } def
 
-/set-remove % u => --
-{
+/remove-from-set { % u => --
     1 dict
     begin
         /u exch def
@@ -90,9 +110,7 @@ seed dup = srand
     end
 } def
 
-
-/set-join % u v => --
-{
+/join-sets { % u v => --
     2 dict
     begin
         /v exch def
@@ -114,20 +132,6 @@ seed dup = srand
     end
 } def
 
-% print a maze row based on borders
-/print-row { % -- => --
-    (|) print % leftmost border
-    0 1
-    N 1 sub
-    dup set-border-right % unconditonally set rightmost border
-    { % for 0 .. N-1
-        dup % we need the control variable twice
-        border-bottom exch get {(___)} {(   )} ifelse print
-        border-right  exch get {(|)  } {( )  } ifelse print
-    } for
-    (\n) print
-} def
-
 % debugging aid
 /show-links {
     (Links:\n) print
@@ -135,38 +139,32 @@ seed dup = srand
     (next ) print next ==
 } def
 
-% debugging aid
-% assume u,y are defined
-/show-pair {
-    [ (pair: ) u  v ] { = } forall
-} def
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % depending on chance, set right border of u or join sets of u and v
 /set-border-or-join { % u v => --
-    cointoss { pop set-border-right } { set-join } ifelse
+    cointoss { pop set-right-border } { join-sets } ifelse
 } def
 
-/make-border-right { % u => --
+/make-right-borders { % u => --
     /u exch def
     u N 1 sub lt {
         /v u 1 add def
-        u v set-equal { u set-border-right } {
+        u v are-in-same-set { u set-right-border } {
             u v set-border-or-join
         } ifelse
-        v make-border-right % recurse
+        v make-right-borders % recurse
     }
     if
 } def
 
-
 /last-row { % u => --
     /u exch def
-    u set-border-bottom
+    u set-bottom-border
     u N 1 sub lt {
         /v u 1 add def
-        u v set-equal { u set-border-right } {
-            u v set-join % in last row we always join
+        u v are-in-same-set { u set-right-border } {
+            u v join-sets % in last row we always join different sets
         } ifelse
         v last-row % recurse
     } if
@@ -179,51 +177,50 @@ seed dup = srand
     get get put
 } def
 
-/make-border-bottom { % ary u => --
+/make-bottom-borders { % ary u => --
     /u exch def
     /vertical-passages exch def
 
+    % assign from previous set member
     vertical-passages u assign-from-prev
 
-    u set-islast {
-        % if u has already vertical passages
-        vertical-passages u get {
-            cointoss {
-                u set-border-bottom
-                u set-remove
-            } if
-        } if
-    } {
-        % can toss a coin
-        cointoss
-        { u set-border-bottom u set-remove }
-        { vertical-passages u true put }
-        ifelse
-    } ifelse
-
-    u N 1 sub lt { vertical-passages u 1 add make-border-bottom } if
+    u is-last-cell-of-set not   % this is not the last cell of the set
+    vertical-passages u get     % the set has already a passage
+    or {
+        cointoss {
+            u set-bottom-border
+            u remove-from-set
+        } {
+            vertical-passages u true put    % set flag in array
+        } ifelse
+    } if
+    % recurse
+    u N 1 sub lt { vertical-passages u 1 add make-bottom-borders } if
 } def
 
+
+/create-row { % -- => --
+    0 make-right-borders
+    % initial array for vertical-passages
+    [ N {false} repeat ] 0 make-bottom-borders
+} def
 
 init-sets
 print-top
 clear-borders
 
-10 {
-
-    0 make-border-right
-
-    % initial array for vertical-passages
-    [ N {false} repeat ] 0 make-border-bottom
-
+maze-height 1 sub {
+    create-row
     print-row
     clear-borders
 } repeat
 
 0 last-row
 print-row
+
 pstack % should be empty
 (End\n) print
+
 %showpage
 quit
 
