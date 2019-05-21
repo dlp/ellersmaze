@@ -7,35 +7,17 @@
 
 /N 10 def
 
-32 srand
+realtime srand
 
-/cointoss % -- => bool
-{
-    rand 100 mod
-    50 lt
+/cointoss { % -- => bool
+    rand 2 mod 0 eq
 } def
 
 /border-right  N array def
 /border-bottom N array def
 /next N array def
 /prev N array def
-
-
-/init-sets-bs % ary i => --
-{
-    /i exch def
-    /ary exch def
-
-    % recurse if within bounds
-    ary length i gt {
-        % update
-        ary i i put
-        % prepare stack and recurse
-        ary
-        i 1 add
-        init-sets-bs
-    } if
-} def
+/vertical-passages N array def
 
 
 /clear-borders
@@ -44,8 +26,53 @@
     N {false} repeat border-bottom astore
 } def
 
+/clear-vertical-passages {
+    N {false} repeat vertical-passages astore
+} def
+
+
+/set-border-bottom { % i => --
+    border-bottom exch true put
+} def
+
+/set-border-right { % i => --
+    border-right  exch true put
+} def
+
+/clr-border-bottom { % i => --
+    border-bottom exch false put
+} def
+
+/clr-border-right { % i => --
+    border-right  exch false put
+} def
+
+/has-border-bottom { % x => bool
+    border-bottom exch get
+} def
+
+/has-border-right { % x => bool
+    border-right exch get
+} def
+
+/walk % proc x => proc
+{
+    /x exch def    % x
+    dup cvx exec % execute proc with x defined
+    % recurse if within bounds
+    x N 1 sub lt { x 1 add walk } if
+} def
+
+
+/print-top {
+    ( ) print
+    N {(___ ) print} repeat
+    (\n) print
+} def
+
+
 /init-sets {
-    0 1 N -1 add { % for 0 .. N-1
+    0 1 N 1 sub { % for 0 .. N-1
         dup % we need the control variable twice
         next exch dup put
         prev exch dup put
@@ -59,12 +86,22 @@
         /y exch def
         /x exch def
         % x.next == y && x == y.prev
-        next x get  y               eq
-        x           prev y get      eq
+        next x get  y  eq
+        prev y get  x  eq
         and
     end
 } def
 
+/set-issingle { % x => bool
+    dup set-equal
+} def
+
+/set-islast { % x => bool
+    dup % x x
+    next exch % x next x
+    get % x nx
+    ge
+} def
 
 /set-remove % x => --
 {
@@ -89,64 +126,6 @@
 } def
 
 
-/link-x-y % x y => --
-{
-    next x y put % x.next = y
-    prev y x put % y.prev = x
-} def
-
-/set-join-y-included % -- => --
-{
-    (y included) ==
-    % y.prev.next = x.next
-    prev y get  % load y.prev
-    next exch   % prepare .next
-    next x get  % load x.next
-    put
-    % x.next.prev = y.last
-    next x get  % load x.next
-    prev exch   % prepare .prev
-    prev y get  % load y.prev
-    put
-
-    link-x-y
-} def
-
-/set-join-x-included % -- => --
-{
-    (x included) ==
-    % x.next.prev = y.prev
-    next x get  % load x.next
-    prev exch   % prepare .prev
-    prev y get  % load y.prev
-    put
-    % y.prev.next = x.next
-    prev y get  % load y.prev
-    next exch   % prepare .next
-    next x get  % load x.next
-    put
-
-    link-x-y
-} def
-
-/set-join-non-inclusive % -- => --
-{
-    (normal) ==
-    % x.next.prev = y.prev
-    next x get  % load x.next
-    prev exch   % prepare .prev
-    prev y get  % load y.prev
-    put
-    % y.prev.next = x.next
-    prev y get  % load y.prev
-    next exch   % prepare .next
-    next x get  % load x.next
-    put
-
-    link-x-y
-} def
-
-
 /set-join % x y => --
 {
     2 dict
@@ -154,20 +133,31 @@
         /y exch def
         /x exch def
 
-        % if x.next > y:
-        next x get y gt {
-            %FIXME set-join-y-included
-            set-join-non-inclusive
-        } {
-            % else if y.prev < x:
-            prev y get x lt {
-                set-join-x-included
-            } {
-                % else
-                set-join-non-inclusive
-            } ifelse
-        } ifelse
+        % x.next.prev = y.prev
+        next x get  % load x.next
+        prev exch   % prepare .prev
+        prev y get  % load y.prev
+        put
+        % y.prev.next = x.next
+        prev y get  % load y.prev
+        next exch   % prepare .next
+        next x get  % load x.next
+        put
+
+        next x y put % x.next = y
+        prev y x put % y.prev = x
     end
+} def
+
+% print a maze row based on borders
+/print-row { % -- => --
+    (|) print
+    0 1 N 1 sub { % for 0 .. N-1
+        dup % we need the control variable twice
+        border-bottom exch get {(___)} {(   )} ifelse print
+        border-right  exch get {(|)  } {( )  } ifelse print
+    } for
+    (\n) print
 } def
 
 /show-links {
@@ -176,20 +166,68 @@
     (next ) print next ==
 } def
 
-clear-borders
-%border-right ==
-%border-bottom ==
 
-%next 0 init-sets
-%next ==
+/show-pair {
+    [ (pair: ) x  y ] { = } forall
+} def
 
-init-sets show-links
+% x must be defined
+/make-border-right {
+    x N 1 sub eq { x set-border-right } % unconditonally set rightmost border
+    { % else (i.e., y in scope)
+        /y x 1 add def
+        x y set-equal { x set-border-right } {
+            cointoss { x set-border-right } { x y set-join } ifelse
+        } ifelse
+    } ifelse
+} def
 
-1 2 set-join show-links
-2 3 set-join show-links
-3 4 set-join show-links
-2 set-remove show-links
-1 2 set-join show-links
+% x must be defined
+/make-border-bottom {
+    vertical-passages x
+    vertical-passages prev x get get
+    put
+
+    x set-islast {
+        vertical-passages x get {
+            cointoss { x set-border-bottom x set-remove } if
+        } if
+    } {
+        % can toss a coin
+        cointoss
+        { x set-border-bottom x set-remove }
+        { vertical-passages x true put }
+        ifelse
+    } ifelse
+} def
+
+% x must be defined
+/last-row {
+    x set-border-bottom
+    x N 1 sub ne { % else (i.e., y in scope)
+        /y x 1 add def
+        x y set-equal not { x clr-border-right x y set-join } if
+    } if
+} def
+
+
+init-sets
+
+print-top
+
+10 {
+    clear-borders
+    /make-border-right 0 walk
+    pop
+    clear-vertical-passages
+    /make-border-bottom 0 walk
+    pop
+
+    print-row
+} repeat
+
+/last-row 0 walk
+print-row
 
 (End\n) print
 %showpage
