@@ -1,0 +1,354 @@
+%!PS-Adobe-3.0
+
+%(util.ps) run
+
+
+(Begin\n) print
+
+/N 10 def
+
+32 srand
+
+/cointoss % -- => bool
+{
+    rand 100 mod
+    50 lt
+} def
+
+/border-right  N array def
+/border-bottom N array def
+/next N array def
+/prev N array def
+
+
+/init-sets-bs % ary i => --
+{
+    /i exch def
+    /ary exch def
+
+    % recurse if within bounds
+    ary length i gt {
+        % update
+        ary i i put
+        % prepare stack and recurse
+        ary
+        i 1 add
+        init-sets-bs
+    } if
+} def
+
+
+/clear-borders
+{
+    N {false} repeat border-right  astore
+    N {false} repeat border-bottom astore
+} def
+
+/init-sets {
+    0 1 N -1 add { % for 0 .. N-1
+        dup % we need the control variable twice
+        next exch dup put
+        prev exch dup put
+    } for
+} def
+
+/set-equal % x y => bool
+{
+    2 dict
+    begin
+        /y exch def
+        /x exch def
+        % x.next == y && x == y.prev
+        next x get  y               eq
+        x           prev y get      eq
+        and
+    end
+} def
+
+
+/set-remove % x => --
+{
+    1 dict
+    begin
+        /x exch def
+        % x.prev.next = x.next
+        prev x get  % load x.prev
+        next exch   % prepare .next
+        next x get  % load x.next
+        put
+        % x.next.prev = x.prev
+        next x get
+        prev exch
+        prev x get
+        put
+        % x.next = x
+        next x x put
+        % x.prev = x
+        prev x x put
+    end
+} def
+
+
+/link-x-y % x y => --
+{
+    next x y put % x.next = y
+    prev y x put % y.prev = x
+} def
+
+/set-join-y-included % -- => --
+{
+    (y included) ==
+    % y.prev.next = x.next
+    prev y get  % load y.prev
+    next exch   % prepare .next
+    next x get  % load x.next
+    put
+    % x.next.prev = y.last
+    next x get  % load x.next
+    prev exch   % prepare .prev
+    prev y get  % load y.prev
+    put
+
+    link-x-y
+} def
+
+/set-join-x-included % -- => --
+{
+    (x included) ==
+    % x.next.prev = y.prev
+    next x get  % load x.next
+    prev exch   % prepare .prev
+    prev y get  % load y.prev
+    put
+    % y.prev.next = x.next
+    prev y get  % load y.prev
+    next exch   % prepare .next
+    next x get  % load x.next
+    put
+
+    link-x-y
+} def
+
+/set-join-non-inclusive % -- => --
+{
+    (normal) ==
+    % x.next.prev = y.prev
+    next x get  % load x.next
+    prev exch   % prepare .prev
+    prev y get  % load y.prev
+    put
+    % y.prev.next = x.next
+    prev y get  % load y.prev
+    next exch   % prepare .next
+    next x get  % load x.next
+    put
+
+    link-x-y
+} def
+
+
+/set-join % x y => --
+{
+    2 dict
+    begin
+        /y exch def
+        /x exch def
+
+        % if x.next > y:
+        next x get y gt {
+            %FIXME set-join-y-included
+            set-join-non-inclusive
+        } {
+            % else if y.prev < x:
+            prev y get x lt {
+                set-join-x-included
+            } {
+                % else
+                set-join-non-inclusive
+            } ifelse
+        } ifelse
+    end
+} def
+
+/show-links {
+    (Links:\n) print
+    (prev ) print prev ==
+    (next ) print next ==
+} def
+
+clear-borders
+%border-right ==
+%border-bottom ==
+
+%next 0 init-sets
+%next ==
+
+init-sets show-links
+
+1 2 set-join show-links
+2 3 set-join show-links
+3 4 set-join show-links
+2 set-remove show-links
+1 2 set-join show-links
+
+(End\n) print
+%showpage
+quit
+
+
+
+
+
+
+
+
+
+
+% A5 page dimensions in mm
+/width 148 mm def
+/height 210 mm def
+/margin 5 mm def
+
+% draw a black border around the page
+/draw-border
+  { gsave
+    0 0 width height rectstroke
+    grestore
+  } def
+
+
+/circle-fill-color % stack: - => -
+  {
+    %205 210 216 setrgbcolor255
+    16#f7f6bb setrgbcolorhex
+  } def
+
+/circle-stroke-color % stack: - => -
+  { 0.1 setgray } def
+
+/draw-circle % stack: x y r => -
+  { gsave
+      circle
+      gsave circle-fill-color fill grestore
+      circle-stroke-color 1.0 setlinewidth stroke
+    grestore
+  } def
+
+
+% x1 y1 ... bottom left corner
+% x2 y2 ... top right corner
+% nx ny ... number of cirles horizontally resp. vertically
+/draw-circle-array % stack: x1 y1 x2 y2 nx ny => -
+  {
+    12 dict
+    begin
+      /ny exch def
+      /nx exch def
+      % x1 y1 x2 y2
+      2 index sub ny div /dy exch def % dy = (y2-y1)/ny
+      % x1 y1 x2
+      2 index sub nx div /dx exch def % dx = (x2-x1)/nx
+      /y1 exch def
+      /x1 exch def
+      /r dx dy min 0.4 mul def % r = 0.5*0.8 * min(dx, dy)
+      /r 6 mm def
+
+      % center of i-th circle
+      % mz_i = z1 + dz (0.5 + i)
+      /mx_i % stack: i => mx_i
+        { 0.5 add dx mul x1 add } def
+      /my_i % stack: i => my_i
+        { 0.5 add dy mul y1 add } def
+
+      % print a row of circles
+      /draw-circle-row % stack: my => my
+        { % 0 .. nx-1
+          0 1 nx 1 sub { mx_i 2dup r draw-circle } for
+        } def
+
+      % print rows:
+      % 0 .. ny-1
+      0 1 ny 1 sub { my_i draw-circle-row pop } for
+    end
+  } def
+
+
+% Print "Name: _______" at baseline h
+/name-line % stack: h => -
+  { 1 dict
+    begin
+      /baseline exch def
+      gsave
+        margin baseline
+        moveto
+        /ComicSansMS findfont
+        24 scalefont setfont
+        (Name:) show
+        3 mm -2 mm rmoveto
+        width margin sub
+        baseline -2 mm add
+        lineto
+        stroke
+      grestore
+    end
+  } def
+
+
+% scale whole system for mm units
+% (NB: won't work as desired as also the linewidth is scaled)
+%/scalefactor 1 mm def
+%scalefactor dup scale
+
+% move away from border / add page margin
+25 mm dup translate
+
+% A5 => A6
+0.7063 dup scale
+
+draw-border
+
+% draw circles field in bottom half
+margin dup
+width margin sub
+height 0.5 mul margin sub
+10 6 draw-circle-array
+
+
+% title with shadow
+/ComicSansMS-Bold findfont
+40 scalefont setfont
+width 2 div
+height 20 mm sub
+moveto
+(Sammelpass) center-text
+16#ff6600 setrgbcolorhex
+1.7 mm text-shadowed-outlined
+
+
+% name line at (height - 40 mm)
+0.0 setgray
+height 38 mm sub name-line
+
+% rectangle for ad/toy sticker
+gsave
+margin
+height 0.5 mul 2 mm add
+width margin 2 mul sub
+height 0.5 mul 44 mm sub
+4 copy
+gsave 0.95 setgray rectfill grestore
+rectstroke
+grestore
+
+
+/ComicSansMS findfont
+18 scalefont setfont
+(\(Wunsch hier aufkleben\))
+dup stringwidth pop
+width exch sub 2 div
+height 0.65 mul
+moveto
+show
+
+showpage
+quit

@@ -1,0 +1,56 @@
+
+set_equal(x,y):
+    x.next == y && x == y.prev
+
+
+set_remove(x):
+    x.prev.next = x.next
+    x.next.prev = x.prev
+    x.next = x
+    x.prev = x
+
+
+join(x,y):
+
+  xp<-x   y->yn
+
+x.next.prev = y.prev
+y.prev.next = x.next
+x.next = y
+y.prev = x
+
+
+
+because of non-crossing property:
+x.next > y => y.last < x.next
+
+if x.next > y:
+
+       xp<-x----------->xn
+            \
+             y---->yn
+
+       xp<-x          ->xn
+            \        /
+             y---->yn
+
+y.last(=y.prev).next = x.next
+x.next.prev = y.last
+x.next = y
+y.prev = x
+
+
+if y.prev < x:
+
+       xp<----x
+               \
+  yp<-----------y--->yn
+
+       xp<----x
+      /        \
+  yp<-          y--->yn
+
+x.first(=x.next).prev = y.prev
+y.prev.next = x.first
+x.next = y
+y.prev = x
