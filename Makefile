@@ -9,7 +9,7 @@ all:
 	@echo "Run 'make filename.pdf' to deploy"
 
 %.show: %.ps
-	gs -Dseed=$$RANDOM $<
+	gs -Dseed=$${SEED:-$$RANDOM} $<
 
 %.pdf: %.ps
 	$(PS2PDF) $< $@
