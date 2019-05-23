@@ -13,9 +13,9 @@
 (Begin\n) print
 seed =
 
-/A4 { 210 mm 297 mm } bind def
+/A4-dim { 210 mm 297 mm } bind def
 
-A4
+A4-dim
 margin 2 mul sub /maze-height exch def
 margin 2 mul sub /maze-width exch def
 
@@ -40,20 +40,31 @@ seed srand
 % Drawing
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
 /-a a neg def
+/nstr 20 string def
 
-/draw-start-next-row {
+/draw-text-num { % arr i -- arr
+    /i exch def
+    dup length i gt {
+        i 0 gt { (.) show } if
+        dup i get
+        nstr cvs show
+        i 1 add draw-text-num
+    } if
+} bind def
+
+/draw-text-info {
+    /Helvetica findfont
+    10 scalefont setfont
+    [ seed N num-rows ] 0 draw-text-num pop
 } bind def
 
 /draw-top {
     margin dup moveto
     currentpoint
     currentpoint
-    /Arial findfont
-    10 scalefont setfont
     0 -10 rmoveto
-    seed 12 string cvs show
+    draw-text-info
     moveto
     N a mul 0 rlineto
     moveto
@@ -253,19 +264,26 @@ seed srand
     pop
 } bind def
 
-init-sets
-print-top draw-top
+% num ... number of rows
+/create-maze { % bool num => --
+    init-sets
+    print-top draw-top
 
-num-rows 1 sub {
-    {bias cointoss} create-row
+    % num is TOS
+    1 sub {
+        {bias cointoss} create-row
+        print-row draw-row
+    } repeat
+
+    % last row
+    {true} create-row
+    % clear last passage (input bool on TOS)
+    { N 1 sub set-bottom-border } if
     print-row draw-row
-} repeat
 
-% last row
-{true} create-row
-N 1 sub set-bottom-border % clear last passage
-print-row draw-row
+} bind def
 
+true num-rows create-maze
 
 pstack % should be empty
 (End\n) print
@@ -275,5 +293,6 @@ closepath
 2 setlinewidth
 stroke
 showpage
+
 quit
 
