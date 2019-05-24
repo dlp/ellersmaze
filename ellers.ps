@@ -1,24 +1,42 @@
 %!PS-Adobe-3.0
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Eller's Maze Generation
+%
+% This postscript program implements Eller's maze generation algorithm.
+% The algorithm is extremely memory efficient as it only needs space
+% proportional to a row; as opposed to holding space for the whole maze.
+%
+% The algorithm thus allows for generation of infinite perfect mazes.
+% Also, it is capable of adding bias (horizontal/vertical passages).
+%
+% (c) 2019, Daniel Wiltsche-Prokesch <daniel.prokesch@gmail.com>
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%(util.ps) run
+
 /mm { %  mm => pt
     360 mul 127 div
 } bind def
 
+% width of a maze cell
 /a 5 mm def
 
-
+% margin for maze
 /margin 15 mm def
 
-(Begin\n) print
-seed =
+% vertical 0.0 <--> 1.0 horizontal
+/bias 0.5 def
 
+(Begin\n) print
+seed =  % print for RNG
+
+% canvas dimensions
 /A4-dim { 210 mm 297 mm } bind def
 
 A4-dim
 margin 2 mul sub /maze-height exch def
 margin 2 mul sub /maze-width exch def
 
+% initialize RNG
 seed srand
 
 % prob
@@ -30,10 +48,7 @@ seed srand
     gt
 } def
 
-% vertical 0.0 <--> 1.0 horizontal
-/bias 0.5 def
-
-/N maze-width a div cvi def
+/N        maze-width  a div cvi def
 /num-rows maze-height a div cvi def
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -46,7 +61,7 @@ seed srand
 /draw-text-num { % arr i -- arr
     /i exch def
     dup length i gt {
-        i 0 gt { (.) show } if
+        i 0 gt { ( - ) show } if
         dup i get
         nstr cvs show
         i 1 add draw-text-num
@@ -156,14 +171,6 @@ seed srand
 
 /init-sets {
     0 1 N 1 sub { make-singleton } for
-} bind def
-
-
-/is-last-cell-of-set { % u => bool
-    dup % u u
-    next exch % u next u
-    get % u nu
-    ge
 } bind def
 
 /remove-from-set { % u => --
