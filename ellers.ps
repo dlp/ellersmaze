@@ -33,6 +33,7 @@ seed =  % print for RNG
 /A4-dim { 210 mm 297 mm } bind def
 
 A4-dim
+%130 mm 130 mm
 margin 2 mul sub /maze-height exch def
 margin 2 mul sub /maze-width exch def
 
@@ -58,20 +59,21 @@ seed srand
 /-a a neg def
 /nstr 20 string def
 
-/draw-text-num { % arr i -- arr
-    /i exch def
-    dup length i gt {
+/draw-text-num { % arr => --
+    dup length 0 exch {
+        /i exch def
         i 0 gt { ( - ) show } if
         dup i get
         nstr cvs show
-        i 1 add draw-text-num
-    } if
+        i 1 add
+    } repeat
+    pop % pop arr
 } bind def
 
 /draw-text-info {
     /Helvetica findfont
     10 scalefont setfont
-    [ seed N num-rows ] 0 draw-text-num pop
+    [ seed N num-rows ] draw-text-num pop
 } bind def
 
 /draw-top {
@@ -89,7 +91,7 @@ seed srand
     currentpoint % start of this line
     0 a rlineto % leftmost border
     0 -a rmoveto
-    0 1 N 1 sub { % for 0 .. N-1
+    0 1 N 1 sub { % for i = 0 .. N-1
         /i exch def
         0 a rmoveto
         a  0  border-bottom i get {rlineto} {rmoveto} ifelse
@@ -126,7 +128,7 @@ seed srand
 /print-row { % -- => --
     (|) print % leftmost border
     0 1 N 1 sub { % for 0 .. N-1
-        dup % we need the control variable twice
+        dup % need control variable twice
         border-bottom exch get {(___)} {(   )} ifelse print
         border-right  exch get {(|)  } {( )  } ifelse print
     } for
@@ -231,18 +233,19 @@ seed srand
     u clr-right-border
 } def
 
-/carve-horizontal-passage { % proc u => proc
-    /u exch def
+/carve-horizontal-passage { % proc => proc
     dup /decision exch def
 
-    u set-right-border
-    u N 1 sub lt {
+    0 N 1 sub {
+        /u exch def
         /v u 1 add def
+        u set-right-border
         u v are-in-same-set not {
             decision { carve-to-right } if
         } if
-        v carve-horizontal-passage % tail-recurse
-    } if
+        v % next position
+    } repeat
+    set-right-border % (of last column)
 } bind def
 
 % u,v are defined
@@ -251,23 +254,20 @@ seed srand
     u set-bottom-border
 } def
 
-/carve-vertical-passage { % proc u => proc
-    /u exch def
+/carve-vertical-passage { % proc => proc
     dup /decision exch def
-
-    u clr-bottom-border
-    u is-singleton not {
-        decision { dont-carve-down } if
-    } if
-    % recurse
-    u 1 add dup % proc u' u'
-    N lt { carve-vertical-passage } { pop } ifelse
+    0 1 N 1 sub  { % for u = 0 .. N-1
+        /u exch def
+        u clr-bottom-border
+        u is-singleton not {
+            decision { dont-carve-down } if
+        } if
+    } for
 } bind def
 
-
 /create-row { % proc => --
-    0 carve-horizontal-passage
-    0 carve-vertical-passage
+    carve-horizontal-passage
+    carve-vertical-passage
     pop
 } bind def
 
