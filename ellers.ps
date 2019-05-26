@@ -12,7 +12,6 @@
 % (c) 2019, Daniel Wiltsche-Prokesch <daniel.prokesch@gmail.com>
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
 /mm { %  mm => pt
     360 mul 127 div
 } bind def
@@ -32,8 +31,8 @@ seed =  % print for RNG
 % canvas dimensions
 /A4-dim { 210 mm 297 mm } bind def
 
-A4-dim
-%130 mm 130 mm
+%A4-dim
+80 mm 80 mm
 margin 2 mul sub /maze-height exch def
 margin 2 mul sub /maze-width exch def
 
@@ -47,10 +46,16 @@ seed srand
     100 mul
     rand 100 mod
     gt
-} def
+} bind def
 
 /N        maze-width  a div cvi def
 /num-rows maze-height a div cvi def
+
+/forall_N { % proc => --
+    0 1 N 1 sub
+    4 -1 roll % dig up proc
+    for
+} bind def
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Drawing
@@ -91,12 +96,11 @@ seed srand
     currentpoint % start of this line
     0 a rlineto % leftmost border
     0 -a rmoveto
-    0 1 N 1 sub { % for i = 0 .. N-1
-        /i exch def
+    { /i exch def  % for i = 0 .. N-1
         0 a rmoveto
         a  0  border-bottom i get {rlineto} {rmoveto} ifelse
         0 -a  border-right  i get {rlineto} {rmoveto} ifelse
-    } for
+    } forall_N
     moveto % back to start of line
     0 a rmoveto % offset for next line
 } bind def
@@ -127,11 +131,11 @@ seed srand
 % print a maze row based on borders
 /print-row { % -- => --
     (|) print % leftmost border
-    0 1 N 1 sub { % for 0 .. N-1
+    { % for i = 0 .. N-1
         dup % need control variable twice
         border-bottom exch get {(___)} {(   )} ifelse print
         border-right  exch get {(|)  } {( )  } ifelse print
-    } for
+    } forall_N
     (\n) print
 } bind def
 
@@ -172,7 +176,7 @@ seed srand
 } bind def
 
 /init-sets {
-    0 1 N 1 sub { make-singleton } for
+    { make-singleton } forall_N
 } bind def
 
 /remove-from-set { % u => --
@@ -223,6 +227,51 @@ seed srand
     (next ) print next ==
 } bind def
 
+%
+% Serialize the current state (sets) to an array
+%
+/serialize { % -- => arr
+    /sid-arr N array def
+    { /u exch def % for u = 0 .. N-1
+        sid-arr u
+        % if u.prev < u:
+        prev u get % sid-arr u u.prev   see if u is in an existing set
+        u lt {
+            % load sidarr[u.prev]
+            sid-arr
+            prev u get
+            get
+        } {
+            u % new id
+        } ifelse
+        put % store to sidarr[u]
+    } forall_N
+    sid
+} bind def
+
+%
+% Deserialize an array to the current state (sets)
+%
+/deserialize { % arr => --
+    /sid-arr exch def
+    /last-u-in-set N array def % keep track of last position of an id
+    { /u exch def % for u = 0 .. N-1
+        u make-singleton % initialize u
+        % lookup last for this id
+        last-u-in-set
+        sid-arr u get
+        get
+        % if it is not null, join u with last
+        dup null ne {
+            u join-sets
+        } { pop } ifelse
+        % set u as last for this id
+        last-u-in-set
+        sid-arr u get
+        u put
+    } forall_N
+} bind def
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Algorithm
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -236,7 +285,7 @@ seed srand
 /carve-horizontal-passage { % proc => proc
     dup /decision exch def
 
-    0 N 1 sub {
+    0 N 1 sub { % repeat N-1 times
         /u exch def
         /v u 1 add def
         u set-right-border
@@ -256,13 +305,12 @@ seed srand
 
 /carve-vertical-passage { % proc => proc
     dup /decision exch def
-    0 1 N 1 sub  { % for u = 0 .. N-1
-        /u exch def
+    { /u exch def % for u = 0 .. N-1
         u clr-bottom-border
         u is-singleton not {
             decision { dont-carve-down } if
         } if
-    } for
+    } forall_N
 } bind def
 
 /create-row { % proc => --
@@ -280,7 +328,9 @@ seed srand
     1 sub {
         {bias cointoss} create-row
         print-row draw-row
+        %serialize deserialize
     } repeat
+
 
     % last row
     {true} create-row
