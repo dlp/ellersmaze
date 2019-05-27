@@ -228,46 +228,27 @@ seed srand
 } bind def
 
 %
-% Serialize the current state (sets) to an array
+% Dump current state
+% (the next array and state of RNG)
 %
-/serialize { % -- => arr
-    /sid-arr N array def
-    { /u exch def % for u = 0 .. N-1
-        sid-arr u
-        % if u.prev < u:
-        prev u get % sid-arr u u.prev   see if u is in an existing set
-        u lt {
-            % load sidarr[u.prev]
-            sid-arr
-            prev u get
-            get
-        } {
-            u % new id
-        } ifelse
-        put % store to sidarr[u]
-    } forall_N
-    sid
+/serialize { % -- => arr int
+    next N array copy
+    rrand
 } bind def
 
 %
-% Deserialize an array to the current state (sets)
+% Restore state
+% (from RNG and a next array)
 %
-/deserialize { % arr => --
-    /sid-arr exch def
-    /last-u-in-set N array def % keep track of last position of an id
+/deserialize { % arr int => --
+    srand
+    % store arr to next
+    next copy pop
+    % create back-links
     { /u exch def % for u = 0 .. N-1
-        u make-singleton % initialize u
-        % lookup last for this id
-        last-u-in-set
-        sid-arr u get
-        get
-        % if it is not null, join u with last
-        dup null ne {
-            u join-sets
-        } { pop } ifelse
-        % set u as last for this id
-        last-u-in-set
-        sid-arr u get
+        % u.next.prev = u
+        next u get
+        prev exch
         u put
     } forall_N
 } bind def
@@ -328,7 +309,6 @@ seed srand
     1 sub {
         {bias cointoss} create-row
         print-row draw-row
-        %serialize deserialize
     } repeat
 
 
