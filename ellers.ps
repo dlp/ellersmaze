@@ -20,7 +20,7 @@
 /a 5 mm def
 
 % margin for maze
-/margin 15 mm def
+/margin 12 mm def
 
 % vertical 0.0 <--> 1.0 horizontal
 /bias 0.5 def
@@ -31,8 +31,8 @@ seed =  % print for RNG
 % canvas dimensions
 /A4-dim { 210 mm 297 mm } bind def
 
-%A4-dim
-80 mm 80 mm
+A4-dim
+%80 mm 80 mm
 margin 2 mul sub /maze-height exch def
 margin 2 mul sub /maze-width exch def
 
@@ -81,8 +81,12 @@ seed srand
     [ seed N num-rows ] draw-text-num pop
 } bind def
 
-/draw-top {
+/draw-init {
     margin dup moveto
+} bind def
+
+/draw-top {
+    draw-init
     currentpoint
     currentpoint
     0 -10 rmoveto
@@ -103,6 +107,26 @@ seed srand
     } forall_N
     moveto % back to start of line
     0 a rmoveto % offset for next line
+} bind def
+
+/draw-glue-marks {
+    currentpoint
+    currentpoint
+    currentpoint
+    gsave
+    newpath
+    moveto
+    -2 mm 0 rmoveto
+    -4 mm 0 rlineto
+    moveto
+    N a mul 0 rmoveto
+    2 mm 0 rmoveto
+    4 mm 0 rlineto
+    moveto
+    closepath
+    1 setlinewidth
+    stroke
+    grestore
 } bind def
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -232,8 +256,8 @@ seed srand
 % (the next array and state of RNG)
 %
 /serialize { % -- => arr int
-    next N array copy
     rrand
+    next N array copy
 } bind def
 
 %
@@ -300,10 +324,32 @@ seed srand
     pop
 } bind def
 
-% num ... number of rows
+/create-last-row { % -- => --
+    {true} create-row
+    % close last passage
+    N 1 sub set-bottom-border
+} bind def
+
+% TODO
+%/init-state {
+%    [1 2 0 3 9 5 6 7 8 4 10 11 12 13 14 15 18 17 16 19 20 21 22 23 24 25 27 28 31 29 30 26 32 33 34 35 36]
+%    1379828400
+%} def
+
+
+% bool ... close maze
+% num  ... number of rows
 /create-maze { % bool num => --
-    init-sets
-    print-top draw-top
+    /init-state where
+    {
+        pop
+        /init-state cvx exec
+        deserialize
+        draw-init
+    } {
+        init-sets
+        print-top draw-top
+    } ifelse
 
     % num is TOS
     1 sub {
@@ -311,16 +357,20 @@ seed srand
         print-row draw-row
     } repeat
 
-
-    % last row
-    {true} create-row
-    % clear last passage (input bool on TOS)
-    { N 1 sub set-bottom-border } if
-    print-row draw-row
-
+    % bool is TOS
+    {
+        % last row
+        create-last-row
+        print-row draw-row
+    } {
+        % dump info for continuation
+        draw-glue-marks
+        serialize ==
+    } ifelse
 } bind def
 
-true num-rows create-maze
+
+false num-rows create-maze
 
 pstack % should be empty
 (End\n) print
