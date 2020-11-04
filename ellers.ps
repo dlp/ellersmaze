@@ -9,7 +9,7 @@
 % The algorithm thus allows for generation of infinite perfect mazes.
 % Also, it is capable of adding bias (horizontal/vertical passages).
 %
-% (c) 2019, Daniel Wiltsche-Prokesch <daniel.prokesch@gmail.com>
+% (c) 2019-2020, Daniel Wiltsche-Prokesch <daniel.prokesch@gmail.com>
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 /mm { %  mm => pt
@@ -370,7 +370,7 @@ seed srand
 } bind def
 
 
-false num-rows create-maze
+true num-rows create-maze
 
 pstack % should be empty
 (End\n) print
